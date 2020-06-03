@@ -1,0 +1,105 @@
+Docker
+
+docker container run -d -p 5000:5000 repository:tag-version
+docker run -d -p 5000:5000 repository:tag-version //to run a container
+docker run -d -p --name=CONTAINER_NAME 5000:5000 repository:tag-version //--name is to give unique name to a container
+-p = publish
+-d = detached
+
+docker logs container_id
+docker logs container_id_substring
+docker logs -f container_id_substring
+-f = follow the logs. logs are tied to the terminal
+
+docker images
+docker container ls //shows running container
+docker container ls -a //show the full history
+docker container stop container_id_substring //stop the container
+
+Docker Architecture
+Docker Client (call to) Docker Dameon
+Docker Dameon manages
+Containers
+Local Images
+Image Registry
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Docker advantages
+Standardize packaging
+Multiplatform support
+Light-weight
+Isolation - failure of one container doesnt affect others
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+docker pull image_name
+docker search image_name
+docker image history image_name/image-id
+docker image inspect image-id
+docker image remove image_name
+docker container rm container_id_substring //stop the container before removing it
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+docker container pause container_id_substring //container will not serve any request.
+docker container unpause container_id_substring
+docker container kill container_id_substring
+docker container inspect container_id_substring
+docker container prune //remove all stopped containers
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+docker system df
+docker system events
+docker system info
+docker system prune -a //remove all stopped containers and images not in use
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+docker stats
+docker stats top
+
+docker run -d -p 5000:5000 -m 512m repository:tag-version //bounding the image to run in memory size of 512MB
+docker run -d -p 5000:5000 -m 512m --cpu-quota=50000 repository:tag-version //full cpu quota is 100,000
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+To Build our own docker image
+docker build -t repository:tag-version . //dont miss the period symbol at the last. it denotes the build context. docker daemon search for DockerFile
+
+
+Push docker image on remote repository. Dockerid is the login name
+docker build -t dockerid/repository:tag-version . 
+docker push dockerid/repository:tag-version 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Java DockerFile
+#Build a JAR File
+FROM maven:3.6.3-jdk-8-slim as STAGE1
+WORKDIR /home/app
+COPY . /home/app
+RUN mvn -f /home/app/pom.xml clean package
+
+#Create a Image
+FROM openjdk:8-jdk-alpine
+EXPOSE 5000
+COPY --from=STAGE1 /home/app/target/MyFile.jar MyFile.jar
+ENTRYPOINT ["sh","-c","java -jar /MyFile.jar"] 
+
+//Alternative to ENTRYPOINT
+CMD sh -c java -jar MyFile.jar
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Improving Docker images caching
+Please read about java caching
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ENTRYPOINT vs CMD //Always use ENTRYPOINT
+CMD will override the command passed using terminal like below example
+
+docker run -d -p 5000:5000 repository:tag-version ping google.com
+//Here ping google.com override the command mentioned in DockerFile using CMD
+
+We can also override the ENTRYPOINT
+docker run -d -p --entryPoint ping google.com 5000:5000 repository:tag-version
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Docker and Microservices
+
+Using Docker link to connect microservices. By default Docker using a bridge network.
+docker run -d -p 8100:8000 --env CURRENCY_EXCHANGE_SERVICE_HOST=http://currency-exchange --name=currency-conversion --link currency-exchange repository:tag-version
+
+Alternative we can use docker host network. But it is only supported in linux.
+
+We can also create our custom network
+ 
+docker network create currency-network
+docker run -p -d 8000:8000 --network=currency-network repository_of_service1:tag-version
+docker run -p -d 8000:8000 --network=currency-network repository_of_service2:tag-version
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Docker Compose for launching Multiple Microservices modules

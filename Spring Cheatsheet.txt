@@ -1,0 +1,510 @@
+Spring cheatsheet
+
+Dependency Injection - Class containing dependency will not instantiate it. It will be taken care by another class. Using Spring we are giving control to the spring framework to instantiate bean for us and inject it using constructor or setter method. This is called Inversion of Control.
+
+Spring Factory Bean
+Spring is container of bean or we can call factory of beans.
+Like Tomcat which we can call us servlet container. It will reads servlets mentioned in web.xml and execute the deployed servlets in web app. In same way Spring is container of beans.
+In backend, Spring is using factory pattern. Lets say one class is need another object as dependency. It will ask Object factory (Bean Factory) to check the configuration files and instantiate the new object.
+It will inject that object in the dependency class for us. Thats how Spring is managing the lifecycle of all the beans created by Spring container.
+
+1.  Using XmlBeanFactory
+BeanFactory bf = new XmlBeanFactory(...); --> Using spring xml config
+ObjectName ob = (ObjectName) bf.getBean("BEAN_ID");
+
+XML File
+<beans><bean id="BEAN_ID" class="FULL_PATH"/></bean> --> We can also add properties value for the bean using property tag (SI) or using constructor (CI). We can use ref attribute to refer other beans defined in the xml.
+
+2. Using ApplicationContext
+ApplicationContext ac = new ClassPathXMLApplicationContext(...);
+ObjectName ob = (ObjectName) bf.getBean("BEAN_ID");
+
+Construction Injection: If we dont specify type in constructor-arg it will default take String. we can also used index attribute inside constructor-arg tag to assign value in any order.
+Q: What if we define two constructor with int and long datatype ?
+
+Inner Bean: It will make sure inner bean will get instantiate only when parent bean get instantiate.
+<bean>
+	<property name="PROP_NAME"><bean></bean></property>
+</bean>
+
+Injecting Collections as dependency
+<bean>
+	<property name="">
+		<list>
+			<value>..</value> (type conversion happens automatically)
+		</list>
+	</property>
+</bean>
+
+Autowiring
+<bean name="CLASS_A" autowire="byName"></bean>
+<bean name="CLASS_B"></bean>
+Class A should contains Class B with name CLASS_B
+
+Autowiring byType and constructor : In this Class A must only contains one bean of Class B.
+
+Bean scopes
+Bean is created when the application context is been initialized not when the context.getBean(..) is called. This is the default behaviour. We can change it.
+Singleton - By default. It means one bean per spring container not one per JVM. JVM contains multiple same spring container.
+Prototype - New bean created with every request or reference. Reference mean defining bean inside another class using ref attribute in xml.
+
+<bean id="" name="" scope="prototype"></bean>
+If the parent class is singleton then child class passed as dependecies will be singleton forcefully no matter if it is prototype or not.
+Q: What if parent is prototype and child is singleton?
+
+Web aware scopes
+Request -  New bean per new servlet request
+Session - New bean per session
+Global Session - new bean per global HTTP session  (portlet context)
+
+ApplicationContextAware, BeanNameAware
+Ex:
+Class A implements ApplicationContextAware, BeanNameAware{
+	ApplicationContext co;
+	@override
+	setApplicationContext(ApplicationContext c){
+		co = c;
+	}
+	@override
+	setBeanName(String name){
+		...
+	}
+}
+
+Bean definition inheritance
+<bean id="PARENT" class="..." abstract="true"> --> If we define abstract attr it will not create any bean in the context. Only other beans can use it to create their own TEMPLATE.
+	<property name="pointA" ref="pointA" />		
+	<property name="LIST_VAR">
+		<list>
+			<ref bean="pointC"/>
+		</list>
+	</property>
+</bean>
+<bean id="CHILD" class="..." parent="PARENT">
+	<property name="pointB" ref="pointB" />		
+	<property name="LIST_VAR">
+		<list merge="true"> --> If we dont specify merge attr it will override value defined by parent bean
+			<ref bean="pointC"/>
+		</list>
+	</property>
+</bean>
+
+Lifecycle callback
+When you want to control the application context and how the beans are getting created/destroyed. Only possible in desktop app
+
+Use AbstractApplicationContext instead of ApplicationContext
+context.registerShutdownHook();
+
+Implement InitializingBean and DisposableBean to write logic while Bean init and destroyed. These interface are from spring framework. So in one way we are making code tightly coupled.
+
+Another way is to define in xml bean definition
+<bean id="" class="" init="INIT_METHIOD" destroy="DESTROY_METHIOD"></bean> --> Bean specific. Called if method specified in beans.
+<beans init="INIT_METHIOD" destroy="DESTROY_METHIOD"> --> For all the beans
+	<bean/>
+</beans>
+
+If we define both the interface and xml config. Both will get called in these order. First interface method and method defined in XML.
+
+BeanPostProcessor
+Call the method after init each and every bean. There is no destroy methods.
+Difference from init method is you dont need it to define for every bean. It should be at central locations.
+Create class implementing BeanPostProcessor containing PreInit and PostInit methods.
+Create simple bean of this class in XML. We can define multiple BeanPostProcessor classes.
+
+BeanFactoryPostProcessor
+As name says int method get called when BeanFactory get initialized.
+Same like BeanPostProcessor. But here only PostInit method.
+
+PropertyPlaceholderConfigurer - Its a BeanFactoryPostProcessor provided by Spring framework itself. Used to read properties from properties file before init any bean 
+<bean class="PropertyPlaceholderConfigurer">
+	<property name="location" value="myfile.properties" />
+	<property name="location" value="classpath: myfile1.properties" />
+</bean>
+<bean>
+	<property name=" ${ PROPERTY_NAME } " /> --> ${ } is used to read from properties file
+</bean>
+
+Annotations
+
+@Required - Put it on top of setter method
+Define BeanPostProcessor named RequiredAnnotationBeanPostProcessor in XML. Without this we will get NullPointerException if we dont specify bean. Spring will throw error in init phase.
+@Resource is alternative to @Autowired provided by JSR
+
+@Autowired - Its a post processor. By type is default.
+@Qualifier. Use it with @Autowired to specify which specific bean to inject. Specify qualifier attr in xml bean tag
+
+<context:annotation-config> - No need to mention any bean post processor explicitly.
+
+@PostConstruct - when bean init
+@PreDestroy - when bean is going to be destroyed. Destroyed when context shutdown.
+
+Advantage of XML
+Using XML we can create same bean with different metadata and properties which we can inject into the parent bean.
+Using annotation we cant do this. It will provide common behaviour of the child class where it is getting injected.
+
+<context:component-scan base-package="..."/> - checking where to find bean.
+
+MessageSource - reading value from properties file and pass it on the UI.
+<bean id="messagesource" class="ResourceBundleMessageSource">
+	<property name="basenames">
+		<list>
+			<value>myFile</value>
+		</list>
+	</property>
+</bean>
+
+1. Using application context method getMessage to get value
+2. Define MessageSource class as dependency in your Bean doing autowiring.
+
+In properties file
+key=value {0}
+In java file
+messageSourceObj.getMessage("key",new Object[]{"Value for index 0"}, "default value" , null); --> last param is for locale.
+
+Event Handling
+@Component
+class MyListener impl ApplicationListener { 
+	onApplicationEvent(Event e) {
+	}
+}
+
+Custom Event
+MyEvent extends ApplicationEvent {
+	constructor(Object source){
+		super(source);
+	}
+	toString(){
+		out("Event occurred");
+	}
+}
+
+Class A implements ApplicationEventPublisherAware {
+	private ApplicationEventPublisher publish;
+	method() {
+		publish.publishEvent(MyEventClassObj);
+	}
+	@override
+	setApplicationPublisher(Publish publish){
+		this.publish = publish;
+	}
+	
+}
+
+AOP
+
+
+
+
+
+
+
+Spring Data
+
+DataSource class DriverManagerDataSource provided by Spring does't provide Connection pooling. datasourceobj.getConnection() returns new connection everytime..
+Use BasicDataSource provided by apache.common.dbcp.
+DriverManagerDataSource class contains properties like driverClassName and url.
+While BasicDataSource class contains adiditional properties like initialSize and maxActive for connection pooling.
+
+Implement a RowMapper for JbdcTemplate
+class ClassMapper implements RowMapper<ClassName> {
+	public ClassName rowMap(ResultSet, int rowVal) throws Exception {
+		ClassName c = new ClassName();
+		c.setId(rs.getInt("col_name"));
+		return c;
+	}
+}
+jdbcTemplateObj.queryForObject(sqlString, new ClassMapper());
+
+NamedParameterJdbcTemplate
+String sql = "select * from tbl where id=:id";
+SqlParameterSource params = new MapSqlParameterSource();
+params.adValue("id",1);
+namedParameterJdbcTemplateObj.update(sql, params);
+
+SimplejdbcTemplate - check it
+
+DAO Support Classes
+Use of SimpleJdbcTemplateSupport, JdbcTemplateSupport and NamedParameterJdbcTemplateSupport. How can we use it to create GenericDao class.
+
+Spring with Hibernate
+
+We dont need hibernate configuration file while using it with spring
+<bean id="sessionFactory" class="AnnotationSessionFactoryBean">
+	<property name="dataSource" ref="dataSource"/>
+	<property name="packagesToScan" value="PACKAGE_WHERE_HIBERNATE_BEAN_ENTITIES_ARE_DEFINED" />
+	
+	<property name="hibernateProperties" >
+		<props>
+			<prop key="dialect">SqlDialect</prop>
+		</props>
+	</property>
+</bean>
+
+In Class
+@Autowired
+private SessionFactory factoryObj;
+method() {
+	String sqlQuery = "";
+	Query query = factoryObj.openSession().createQuery(sqlQuery);
+	query.uniqueResult();
+}
+
+
+Spring Security
+
+Authentication
+Knowledge based authentication - based on password or answer to personal question
+Possession based authentication - OTP, cards
+Multifactor based authentication - Combination of both
+
+Authorization
+Access to allow services
+
+Principal
+Currently loggedin user u identified using authentication
+
+Granted Authority
+Permission given to user to access service/authorities
+
+Roles
+Group of authorities
+Authorities are fine grained while Roles are coarse grained
+
+Default Behaviour if we specify spring security dependecy in classpath
+Add mandatory authentication for all urls exception error page url (/error)
+add login form
+handles login error
+create default username (user) and password
+
+Set username and password in application.properties
+spring.security.user.name = harsh
+spring.security.user.password = test
+
+Configure Spring security authentication
+AuthenticationManager used for authentication
+AuthenticationManagerBuilder using AuthenticationManager behind the scenes
+AuthenticationManagerBuilder will first ask what kind authentication we want ? Ans : In memory authentication
+
+We need to create class extending class WebSecurityConfigureAdapter which contains configure method having argument AuthenticationManagerBuilder. We need to override this configure method.
+
+@EnableWebSecurity
+class ClassName extends WebSecurityConfigureAdapter {
+	configure(AuthenticationManagerBuilder auth) {
+		auth.inMemoryAuthentication()
+		.withUser("...")
+		.password("...")
+		.roles("...")  //Password must be encoded and not clear text.
+		.and()	//to add multiple users
+		.withUser("...").password("...").roles("...");
+	}
+	
+	@Bean //Expose a bean of type PasswordEncoder. 
+	public PasswordEncoder getEncodedPassword() {
+		return NoAuthPasswordEncoder.getInstance(); //Telling spring security to use clear text password. Not use in real app.
+	}
+}
+
+Configure spring security authorization
+API			Roles
+/				all
+/admin		admin
+/user			normal users and admin users
+ 
+ Create class extending WebSecurityConfigureAdapter and override configure(HttpSecurity sec)
+
+@EnableWebSecurity
+class ClassName extends WebSecurityConfigureAdapter {
+	configure(AuthenticationManagerBuilder auth) {
+		auth.inMemoryAuthentication()
+		.withUser("...")
+		.password("...")
+		.roles("...")  //Password must be encoded and not clear text.
+		.and()	//to add multiple users
+		.withUser("...").password("...").roles("...");
+	}
+	
+	@Bean //Expose a bean of type PasswordEncoder. 
+	public PasswordEncoder getEncodedPassword() {
+		return NoAuthPasswordEncoder.getInstance(); //Telling spring security to use clear text password. Not use in real app.
+	}
+	
+	configure(HttpSecurity sec) {
+		sec.authorizeRequest().antMatcher(" /** ").hasRoles("USER").and().formLogin(); //default is form login. 
+		sec.authorizeRequest().antMatcher(" /** ").hasAnyRoles("USER","ADMIN"); Path Pattern /** is to access all urls
+		
+		// Always define from most restrictive urls to least restrictive urls
+		sec.authorizeRequest()
+		.antMatcher("/admin").hasRole("ADMIN")
+		.antMatcher("/user").hasAnyRole("USER","ADMIN")
+		.antMatcher("/", "static/css", "static/js").permitAll()
+		.and().formLogin();
+	}
+}
+
+Spring Security without Spring boot
+
+Add filter in xml to make spring security started working
+<filter>
+	<filter-name>securityfilter</filter-name>
+	<filter-class>DelegatingFilterProxy</filter-class>
+</filter> 
+<filter-mapping>
+	<filter-name>securityfilter</filter-name>
+	<url-pattern>/*</url-pattern>
+</filter-mapping>
+
+DelegatingFilterProxy doesn't do job itself instead it delegates it to bunch of spring security specific filters depending upon the configuration.
+
+When the authentication is successfull it returns Principal.
+When spring do authentication it keeps track of input credentials and ouput using Authentication interface object.
+Pre-authentication - Authentication obj contains credentials
+Post-authentication - Authentication contains Principal
+
+Providers - Pattern using which spring do authentication
+AuthenticationProvider authenticate method accepting Authenticate interface object
+
+Single app contains multiple authentication mechanism like LDAP, SSO, OAuth etc
+Multiple Authentication Providers are managed by AuthenticationManager.
+ProviderManager implements AuthenticationManager by overriding authenticate method
+
+ProviderManager calls sequentially Classes which implementing AuthenticationProvider.
+Class implementing AuthenticationProvider override supports method which tells which type of authentication they supports like SSO.
+
+Class implementing AuthenticationProvider calls the Identity store (DB or other) to check user is valid or not.
+
+Retrieving user after its validated properly Spring uses its own class called UserDetailsService retuning UserDetails interface object to AuthenticationProvider
+
+High level picture
+
+Input(Credentials) -> Authentication Filter -> AuthenticationManager authenticate() -> AuthenticationProvider authenticate() supports() -> UserDetailsService loadUserByUserName()
+UserDetailsService returns UserDetails object to AuthenticationProvider
+AuthenticationProvider check user is valid or not
+
+If no AuthenticationProvider throw exception
+
+If yes it informs to AuthenticationManager and then it returns Authenticate object containing Principal
+It takes that object and stored it in security context thread to identify authorization
+There are some Session filters which takes object from thread locale
+
+Spring Security with JDBC
+
+@EnableWebSecurity
+class ClassName extends WebSecurityConfigureAdapter {
+
+	@Autowired
+	private DataSource dataSource;
+	
+	configure(AuthenticationManagerBuilder auth) {
+	
+		// main part - instead of in memory authentication we are using JDBC. For H2 DB we dont need to configure DataSource. Spring boot do it for us.
+		auth.jdbcAuthentication()
+		.dataSource(dataSource)
+		.withDefaultSchema()
+		.withUser("...")
+		.password("...")
+		.role("...");
+		
+		//Using any other DB
+		auth.jdbcAuthentication()
+		.dataSource(dataSource)
+		.userByUserNameQuery(" sql query ")
+		.authoritiesByUsernameQuery(" sql query ");
+	}
+	
+	@Bean //Expose a bean of type PasswordEncoder. 
+	public PasswordEncoder getEncodedPassword() {
+		return NoAuthPasswordEncoder.getInstance(); //Telling spring security to use clear text password. Not use in real app.
+	}
+	
+	configure(HttpSecurity sec) {
+		sec.authorizeRequest().antMatcher(" /** ").hasRoles("USER").and().formLogin(); //default is form login. 
+		sec.authorizeRequest().antMatcher(" /** ").hasAnyRoles("USER","ADMIN"); Path Pattern /** is to access all urls
+		
+		// Always define from most restrictive urls to least restrictive urls
+		sec.authorizeRequest()
+		.antMatcher("/admin").hasRole("ADMIN")
+		.antMatcher("/user").hasAnyRole("USER","ADMIN")
+		.antMatcher("/", "static/css", "static/js").permitAll()
+		.and().formLogin();
+	}
+}
+
+Spring Boot with JPA and MySQL
+
+@Autowired
+private UserDetailsService userDetailService;
+
+configure(AuthenticationManagerBuilder auth) {
+
+	// main part - instead of in memory authentication we are using JDBC. For H2 DB we dont need to configure DataSource. Spring boot do it for us.
+	auth.;
+	
+}
+
+class MyUserDetails implements UserDetails {
+	override all the methods of UserDetail
+	constructor(User user ) {
+		this.name, password, active;
+		this.authorities =  user.getAuthorities().split(","); //convert it to list of authorities
+	}
+}
+	
+@Service
+class MyUserDetailsService implements UserDetailsService{
+	
+	@Autowired
+	UserRepository userRepo;
+
+	UserDetails loadyByUserName(String username) {
+		Optional<User> user = userRepo.findByUserName(userName);
+		//if user not found throw exception
+		return user.map(MyUserDetails :: new).get();
+	}
+}
+
+@Entity
+@Table(name="my_user_tablle")
+class User {
+	@Id
+	private int id;
+	private String username, password, roles, active etc. //Map this with the table columns
+}
+
+public interface UserRepository extends JpaRepository<User, Integer> {
+	Optional<User> findByUserName(String username);
+}
+
+Spring Security LDAP
+
+In application.properties
+spring.ldap.embedded.port=3308
+spring.ldap.embedded.ldif=classpath:ldap-data.ldif //ldif is ldap data interchange format. same like sql file
+spring.ldap.embedded.base-dn=dc=ANYTHING, dc=ORGANIZAITION_ANYTHING
+
+configure(AuthenticationManagerBuilder builder) {
+	builder.ldapAuthentication().otherMethds();
+}
+
+JWT
+
+Authorization happens in two way
+Session  token+ Cookie - Client request to server. Server authenticate the client and return Session Id. Client store it in Cookies and send it in every request header going forward
+JWT - Client request to server. Server validate client and return same information with unique sign in JSON format. Going forward client needs to add that JWT token in every request.
+Session token is Reference token while JWT is Value token.
+
+Structure of JWT
+String divided by two period symbol (Ex: fkjdsoif432rkjnkfs. daskjdsakdaskdaskjd. kdkjasdkjsa  )
+header.payload.signature
+header and payload are in base64.
+If header and payload change by malicious user it will change signature. When request came secret key is applied on base64 encoded data and checks both the signature matched.
+
+JWT is not for authentication. It is for authorization.
+JWT get after authentication is either stored in localStorage or cookie and pass in subsequent request header.
+
+In HTTP Header : key-value pair
+Authorization: Bearer JWT-Token
+
+How secure is JWT to read by anyone ?
+As we are not passing any sensitive data we are secure. We are passing that much needed data which can authorize user.
+But if any other user get our JWT token they can impersonate us. So always use HTTPS, OAuth etc
+

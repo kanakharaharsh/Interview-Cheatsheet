@@ -1,0 +1,232 @@
+Spring MVC
+
+In spring-dispatcher.xml
+<Bean id="handlerMapping" id="BeanHandlerMappingClass"/>
+<bean name="/index.html" name="MyControllerClass"/>
+<bean id="viewResolver" /> //set the properties
+
+MyControllerClass extending AbstractController
+
+public ModelAndView handlerRequest(Req, Res){
+	ModelAndView obj = new ModelAndView("MyPage"); //MyPage.jsp
+	obj.addObject("welcomeMessage","Hello");
+	return obj;
+}
+
+MyPage.jsp
+${welcomeMessage}
+
+Annotation Based MVC
+<Bean id="handlerMapping" id="BeanHandlerMappingClass"/>
+<bean id="viewResolver" /> //set the properties
+<context:component-scan base-package="Package" />
+
+@Controller
+@RequestMapping("/greet")
+class MyControllerClass{
+	
+	@RequestMapping("/welcome")
+	public ModelAndView handlerRequest(){
+		ModelAndView obj = new ModelAndView("MyPage"); //MyPage.jsp
+		obj.addObject("welcomeMessage","Hello");
+		return obj;
+	}
+
+	//PathVariable example
+	@RequestMapping("/welcome/{userName}")
+	public ModelAndView handlerRequest( @PathVariable("userName")  String name) { 
+		ModelAndView obj = new ModelAndView("MyPage"); //MyPage.jsp
+		obj.addObject("welcomeMessage","Hello " + name);
+		return obj;
+	}
+
+	//Multi PathVariable example
+	@RequestMapping("/welcome/{userName}")
+	public ModelAndView handlerRequest( @PathVariable Map<String,String> params) { 
+	}
+	
+	@RequestMapping("/welcome")
+	public ModelAndView handlerRequest( @RequestParam(value="username",defaltvalue="test") String name, @RequestParam("password") String pwd ) { ... }
+	
+	@RequestMapping("/welcome")
+	//Multiple RequestParam
+	public ModelAndView handlerRequest(@RequestParam Map<String,String> params){ ... }
+	
+	@RequestMapping(value="/welcome",method=RequestMethod.POST)
+	//student1 mentioned inside ModelAttribute can be access inside JSP like this ${student1.propertyName}
+	public ModelAndView handlerRequest(@ModelAttribute("student1") Student student){ ... }
+	
+	@ModelAttribute
+	public void setModelAttrForAllMethods(Model model){
+		model..addAttribute("commonMessage","Hello"); //this will add in all the methods which is returning ModelAndView obj
+	}
+	
+	@RequestMapping("/welcome")
+	//In ReturnToSamePage.jsp add this code
+	//	<form:errors path="student1.*" /> to print the eror actual stacktrace. Include the form tag library
+	public ModelAndView submittingForm(@ModelAttribute("student1") Student student 1, BindingResult result){
+		if(result.hasErrors()) {
+			ModelAndView obj = new ModelAndView("ReturnToSamePage.jsp");
+			return obj;
+		}
+		ModelAndView obj = new ModelAndView("success.jsp");
+		return obj;		
+	}
+
+	//Data Binding
+	@InitBinder
+	public void initBinder(WebDataBinder binder){
+		binder.setDisallowedFields(new String["studentMobile"]);
+		SimpleDateFormat sdfObj = new SimpleDateFormat("yyyy^^^^^MM###DD"); //whenever use put date in this format.
+		binder.registerCustomEditor(Date.class,"studentDateProp", new CustomDateEditor(sdfObj,false));
+		binder.registerCustomEditor(String.class, "studentName", new MyPropertyEditorSupportClass());
+	}
+	
+	//Form validation using annotation. Applying validation directly on bean
+	//We need to use third party validator lib like hibernate-validator
+	public ModelAndView submitForm( @Valid @ModelAttribute("stu") Student student){ ... } //Validation on Student bean triggered due to @Valid annotation
+	
+}
+
+class MyPropertyEditorSupportClass extends PropertyEditorSupport {
+	@override
+	public void setAsText(String propertyName){
+		// do the logic on propertyName and pass the output in setValue method
+		setValue(propertyName);
+	}
+}
+
+class Student {
+	@Size(min=2,max=30, message="Custom Message {min} {max}")
+	String salary;
+	
+	@Patter(regexp="[...]")
+	String name;
+	
+	@Past
+	Date dob;
+	
+	@Max(2222)
+	long id;
+}
+
+In spring-dispatcher.xml for form validation message
+<bean id="messageSource" class="RelodableResourceBundleMessageSource"> //Read about RelodableResourceBundleMessageSource
+	<property name="basename" value="/WEB-INF/studentMessage" /> // studentMessage.properties file
+</bean>
+
+In studentMessage.properties 
+	Size.student1.mobileNumber = Size must be equal to 10
+pattern -> ValidationAnnotationName.refObjName.propertyName
+If this pattern not found it will look for ValidationAnnotationName.propertyName
+if above pattern also not found then ValidationAnnotationName.FieldType
+if above pattern not found it will search for ValidationAnnotationName
+
+Interceptor 
+
+Create class extending HandleInterceptorAdapter and overriding preHandle, postHandle and afterCompletion methods based on requirements
+preHandle - before calling the controller
+postHandle - before controller calling the view 
+afterCompletion - after view obj is created
+Put an entry of created class in spring configuration file spring-dispatcher.xml
+In spring-dispatcher.xml
+
+<mvc:interceptors>
+	<bean class="MyCustomInterceptorClass" />
+</mvc:interceptors>
+
+//Alternative if you want to group based on urls
+
+<mvc:interceptors>
+	<mvc:interceptor>
+		<mvc:mapping path="/welcome.html" />
+		<bean class="MyCustomInterceptorClass" />
+	</mvc:interceptor>
+</mvc:interceptors>
+
+i18n and Localization
+
+For i18n create file with relevant prefix like student_en.properties, student_fr.properties
+In jsp, add tag library for reading properties
+<spring:message code="label.name" />
+
+Localization
+To Provide user a option to change site language register this class in xml. We must need to mention both the class LocalChangeInterceptor and CookieLocaleResolver
+<mvc:interceptors>
+	<bean class="LocalChangeInterceptor">
+		<property name="paramName" value="siteLanguageParamInRequest" />
+	</bean>
+</mvc:interceptors>
+<bean id="localeResolver" class="CookieLocaleResolver">
+	<property name="defaultLocale" value="en" /> // all the properties mentioned here are not mandatory
+	<property name="cookieName" value="localCookie" />
+	<property name="cookieMaxAge" value="3600" />
+</bean>
+
+Exception Handling
+
+@Controller
+class MyController {
+	
+	@ExceptionalHandler(value = NullPointerException.class)
+	public String handleNullPointerException(Exception e){
+		//log exception
+		return "NullPointerExceptionPage"; 
+	}
+}
+
+Global Exception handling
+
+@ControllerAdvice
+public class GlobalExceptionHandling{
+
+	@ResponseStatus(value = HttpStatus.INTERNAL_SERVER_ERROR) //pass this http code in response
+	@ExceptionalHandler(value=Exception.class)
+	public String handleException(Exception e){
+		//log exception
+		return "ExceptionPage";
+	}
+}
+
+Spring REST
+
+@RestController // Alternative to @Controller
+public MyController{
+
+	@ResponseBody //If @RestController defined no need to use this annotation
+	@RequestMapping(value="/welcome", method=Request.GET, produces=MediaType.APPLICATION_XML_VALUE, consumes=MediaType.APPLICATION_JSON_VALUE)
+	public ArrayList<Student> getList(@RequestBody Student stud){ 
+		... 
+		return studentList;
+	}
+	//By default RestController can pass the response in JSON and XML format depends upon the Accept value defined in request header. Ex: application/json
+	//Here it will pass response only in XML due to produces attribute
+	//Also pass content-type in header to say what is the data format for request
+	//consume attr says server only accept this format
+	
+	//All required annotation
+	public ResponseEntity<Void> updateData(){ //for update, delete or insert operations
+	
+		HttpHeaders headers = new HttpHeaders();
+		headers.put("key1","val1");
+		headers.put("key2","val2");
+	
+		return new ResponseEntity<Void>(Object obj, HttpStatus.OK); //1
+		return new ResponseEntity<Void>(Object obj, headers, HttpStatus.OK); //2
+	}
+}
+
+Student Bean
+
+@JsonInclude(JsonInclude.Include.NOT_NULL) //if any key has null value it will not pass in response
+@JsonIgnoreProperties({"skills"})
+@JsonPropertyOrder({"dob","studName", ...} ) //json response in this order
+class Student{
+	
+	@JsonProperty("studName") //pass this as key in json response
+	String studentName;
+	
+	String skills;
+}
+
+

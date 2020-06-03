@@ -1,0 +1,332 @@
+Multithreading
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+We can overload the run method but thread class start method call the run having no arg and return type void
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Thread Exceptions
+1) SecurityException - if current thread is not allowed to access this thread
+2) IllegalArgumentException - if thread priority is not in range
+3) NullPointerException - if thread argument is null
+4) IllegalThreadStateException
+Calling start() on same thread obj gives IllegalThreadStateException. If you want to start thread of same object multiple times create new instance of thread and call start method on it.
+MyClass obj = new MyClass();
+Thread t = new Thread(obj);
+t.start();
+Thread t1 = new Thread(obj);
+t1.start();
+5) IllegalMonitorStateException
+when we call wait, notify or notifyAll on any object without acquiring intrinsic lock on that object using synchronized method
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Race Conditions
+
+Incorrect results produce due to thread interleaving
+Two types of race conditions:
+Check then act
+Read-modify-write
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Check then act
+Multiple threads checks for some condition to be true. Based on that they try to change state of variable
+Ex: E-commerce 
+class SharedResource{
+	//init productMap obj
+	SharedResource(){
+		//fill the map
+	}
+	buyProduct(String key){
+		//check if the product is in stock or not. This logic is called CRITICAL SECTION
+	}
+}
+class BuyPen implements Runnable{			// Create same class for BuyBook or any other products
+	SharedResource sharedResource = null;
+	public BuyPen(sharedResource){
+		this.sharedResource = sharedResource;
+	}
+	run(){
+		sharedResource.buyProduct("PEN");
+	}
+}
+In Main class main method
+SharedResource sharedResource = new SharedResource();
+BuyBook buyBook = new BuyBook(sharedResource);
+BuyPen buyPen = new BuyPen(sharedResource);
+Thread t1 = new Thread(buyBook,"Thread1");
+Thread t1 = new Thread(buyPen,"Thread1");
+Thread t1 = new Thread(buyBook,"Thread1");
+//start all the threads
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Read-modify-write
+Multiple thread read value of shared resource variable and then try to change state of variable.
+Ex: Vote counting system
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Thread Naming
+Inside run method
+Thread.currentThread().getName();
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Synchronized
+If two threads are accessing the common obj or variable put it inside the sync method or block
+Mutex - Intrinsic lock
+
+1) Method (Object level lock) - make buyProduct method synchronized
+2) Static block (object level lock) - make setCounter calling inside run method synchronized
+3) static synchronized (class level lock)
+run(){
+	MyThreadclass.callStaticMethod();
+}
+synchronized callStaticMethod(){ ... }
+
+class SharedResource{
+	static synchronized method1(){}
+	static synchronized method2(){}
+	static method3(){}
+	synchronized method4(){}
+	synchronized method5(){}
+	method6(){}
+}
+
+When one thread is calling method which is STATIC and SYNCHRONIZED no other thread can call the same method or other method which are also STATIC and SYNCHRONIZED.
+As Class level lock is applied. But at same time another thread can call method defined only SYNCHRONIZED as no object level lock defined till now. After calling SYNCHRONIZED method
+no other thread can call other SYNCHRONIZED method. To access two different SYNCHRONIZED methods by multiple threads at same time we need to create two objects as intrinsic lock.
+
+When shared resource is declared as STATIC make the synchronized method/block static
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Inter-Thread Communication
+It is possible using wait, notify and notifyAll methods
+Why it is required?
+Polling: one thread is continiously calling to check some condition. If the condition satisfy it will trigger some action. This is wastage of CPU Time
+Ex:
+PhotoFrame Bean
+class MainPhotoFrame {
+	Map<String, List<PhotoFrame>> availableFrames = new HashMap<>();
+	boolean isAvailable() {
+		synchronized(availableFrames){ //intrinsic lock is applied using availableFrames obj
+			if frames are not empty return true else return false
+		}
+	}
+	buyFrame(String type){
+		if frame is available of that type buy it and update the stock
+	}
+	updateAvailToBuyerOrOnUI(){
+		synchronized(availableFrames){
+			while(availableFrames are empty){
+				Thread.wait();
+				//code written below wait() will get called once notify method get called
+			}
+		}
+	}
+	putStock(PhotoFrame frame){
+		synchronized(availableFrames){
+			Thread.notifyAll();
+			//Add frame into stock. This logic still get called after notify and will release the lock after executing all the statements
+		}
+	}
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Thread.yeild()
+
+It is called on a thread which is taking a long time to complete the task. Calling yeild() will give other thread acquire the processor.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Thread Lifecycle
+
+New Born -> Ready/Runnable -> Running -> Dead
+Running -- wait() / wait(timeout) --> Waiting -- wait timeout expired / notify /  interrupt --> Waiting to get lock -- when current waiting thread lock --> Ready/Runnable
+ 
+Wait / Notify /NotifyAll should be inside the synchronized method
+Wait immediately release the lock on current object 
+notify and notifyAll - release the lock after executing the last statement of sync block/method doesn't matter if it is defined in the middle.
+Wait, Notify and NotifyAll are part of Object class
+If you call wait in any method which is getting called from synchronized method or block then also it will throw exception.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+volatile keyword
+It is used to achieve basic thread synchronization. When another threading is updating value another thread should get the latest and not from the cache.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+join()
+Inside main metho
+starting thread
+calling join(); // this will make us to wait for the spawn thread to finish first before executing the next statements
+// If you call join in main method for any spawn thread main method stop executing and wait for other thread to finish
+statements
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+When to use multiple intrinsic lock ?
+
+---------------> 1st Scenario 
+class Runner {
+	List obj1, obj2;
+	process1(){
+		updating obj1
+	}
+	process2(){
+		updating obj2
+	}
+}
+createWorker(){
+	Thread worker1 run method calling process1();
+	Thread worker2 run method calling process2();
+	calling join on worker1 and worker2 to get final result before executing next statements 
+	//here two different threads are inside calling different methods and updating different objects and not sharing resource so no need to have sync method or block
+}
+
+---------------> 2nd Scenario 
+class Runner {
+	List obj1;
+	Object lock;
+	process1(){
+		sync(lock){
+			updating obj1
+		}
+	}
+	process2(){
+		sync(lock){
+			updating obj1 // Both threads are updating the same object so need to put this logic inside sync block.
+		}
+	}
+}
+createWorker(){
+	Thread worker1 run method calling worker1();
+	Thread worker1 run method calling worker1();
+	calling join on worker1 and worker2 to get final result before executing next statements 
+	statements
+	// as both threads are updating same object one thread need to acquire lock on it
+}
+
+---------------> 3rd scenario
+class Runner {
+	List obj1, obj2;
+	Object lock1, lock2;
+	process1(){
+		sync(lock1){ 
+			updating obj1 
+		}
+	}
+	process2(){
+		sync(lock2){ 
+			updating obj2 
+		}
+	}
+}
+createWorker(){
+	Thread worker1 run method calling process1() and process2();
+	Thread worker2 run method calling process1() and process2();
+	calling join on worker1 and worker2 to get final result before executing next statements 
+	//in previous scenario worker1 calling process1 and worker2 calling only process2
+	//here both workers are executing both processes.
+	//As both the process are independent of each other  because both are updating different objects so when one worker is executing process2 other thread should start working on process1
+	//when one thread can acquire a lock on one process other thread can acquire lock on another process.
+}
+In short when multiple threads are calling multiple synchronized processes which are independent of each other (not sharing common variables) then we can use multiple mutex.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Nested Synchronized Methods and Blocks
+
+Methods - when one synchronized method get called from another that thread acquire lock on both the methods. No other thread can acquire lock on other method
+If nested method are not synchronized they can call independently
+If parent unsync method is calling sync methods still another thread can access sync method at same time without waiting for unsync method to call sync method.
+Blocks - when u have multiple mutex and parent method is calling nested method containing another lock both threads can access two different method at same time doest matter one sync block is calling another sync block
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Thread Pools
+
+ExecutorService executor = Executor.newFixedThreadPools(2); //This 2 workers will work on multiple task simultaneously.
+for(...){
+	executor.submit(new MyThreadclass()); //MyThreadclass run method get called.
+}
+executor.shutdown();
+sout("Task submitted");
+executor.awaitTermination(10,Timeunit.Days) throws InterruptException
+sout("Task Completed");
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Countdown Latches
+
+class MyThreadclass{
+	CountdownLatch latch;
+	constructor(CountdownLatch l){
+		this.latch = l;
+	}
+	run(){
+		latch.countDown();
+	}
+}
+class MainClass{
+	main(){
+		CountdownLatch co = new CountdownLatch(3);
+		ExecutorService executor = Executor.newFixedThreadPools(2); //This 2 workers will work on multiple task simultaneously.
+		for(...){
+			executor.submit(new MyThreadclass(co)); //MyThreadclass run method get called.
+		}
+		co.await() throws InterruptException // next statements will not proceed till countDown value is 0
+		//statements
+		executor.shutdown();
+	}
+}
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CountdownLatch comes into use
+When we dont want to use Thread.join(). We want all the threads to complete before executing the next statements in main or any other spawn thread.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Re-entrant locks
+Alternative to synchronized keyword
+synchronized(this){
+	increment();
+}
+
+Lock lock = new ReentrantLock();
+Condition condition = lock.newCondition();
+lock.lock();
+lock.wait(); //call lock.signal() to wake up
+increment();
+lock.unlock();
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Semaphores
+
+Semaphore so = new Semaphores(10);
+so.acquire(); //decrement the value
+so.release(); //increment the counter.
+Can be useful while creating a DB connection. If we are creating a ConnectionInstance which is everytime creating a new DB connection we can restrict it using semaphores.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Callable and Futures
+
+If you want to have returned result processed by thread
+
+Future<CustomBean> futureObj = executorService.submit(new Callable<Integer>(){
+	public Integer call() throws Exception{
+		//same like run method but having return type
+		return 100;
+	}
+});
+CustomBean result = (CustomBean) futureObj.get();
+
+If you dont want to return anything from Callable
+Future<?> futureObj = executorService.submit(new Callable<void>(){
+	public void call() throws Exception{
+		//same like run method but having return type
+		return null;
+	}
+});
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Interrupting Threads
+
+Future<CustomBean> futureObj = executorService.submit(new Callable<Integer>(){
+	public Integer call() throws Exception{
+		//same like run method but having return type
+		return 100;
+	}
+});
+fu.cancel(true); is like calling Thread.interrupt() on the running threads
+To check if the current thread is interrupted and provide the proper validaiton use Thread.currentThread().isInterrupted()
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+wait vs sleep
+
+wait release the lock while sleep hold the lock
+wait is in Object class.sleep in Thread class
+wait is not static method
+wait should be notified by notify and notiyAll if no timeout specified
+wait method should be called from loop to deal with false alarm
+wait must only be called inside synchronized method or block
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Why wait, notify and notifyAll are in object class?
+
+This methods are works by acquiring locks using synchronized. And locks are associated with Object class not with Thread class.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Make main thread deadlock
+Inside main method call Thread.currentThread().join(). This will wait for itself to die.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+UncaughtExceptionHandler - Read about it ?
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Synchronizing run method - we can do that but it is not a feasible solution. 

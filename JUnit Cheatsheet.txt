@@ -1,0 +1,203 @@
+JUnit Cheatsheet
+
+Absence of failure is success
+Class for which we are writing junit is called System under test
+@Before and @After - execute for every junit methods
+@BeforeClass and @AfterClass - Method impl. it must be static. Called when class init.
+assertArrayEquals - for comparing array values
+@Test(expected=ExceptionClassName.class) - Exception Handling
+@Test(timeout=1000) - Performance testing. Specify in milliseconds.        //TODO: Learn more about Performance testing
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Parameterized Test
+1. create member variable
+String actualVal, expectedVal;
+2. create constructor
+constructor(actualVal,expectedVal){
+	//assign values
+}
+3. @RunWith(Parameterized.class) - put it on class. If different junit methds required different params then u need to create different class.
+4. @Parameters - put it on methods. it should return collections and must be static.
+public static Collections<String[]> testConditons(){
+	String params[][] = {{"actual input","expected output"}};
+	return Arrays.asList(params);
+}
+5. use in junit methods
+@Test
+method{
+	assertEquals(expectedVal,obj.method(actualVal)); --> usage
+}
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Organize Junit in suite
+@RunWith(Suite.class)
+@SuiteClasses({MyClass1.class, MyClas2.class})
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Mockito can be used in replacement of stub. In stub for every output we need to create different stub service class for the service interface.
+Nice mocks means method not declared return defalt value back. If unstubbed method is called it will return default val. Ex mocking list.get(0) and not mocking list.size()
+Mock doesnt get any business logic from the class and return the default value if not used when and then properly.
+
+ServiceInterface serviceObj = mock(ServiceInterface.class);
+List<String> returnVal = {"1"};
+
+stub(serviceObj.method()).toReturn(Object);
+--- alternative ---
+when(serviceObj.method"arg get from bussinessClass")).thenReturn(returnVal);
+
+assertEquals(1,size of list); 
+
+//Method called multiple times returning new values everytime.
+when(mock.method()).thenReturn(foo).thenReturn(bar).thenThrow(new Exception("test"));
+//OR if you're mocking a void method and/or using spy instead of mock
+doReturn(foo).doReturn(bar).doThrow(new Exception("Test").when(mock).method();
+
+when(list.get(anyInt())).thenReturn("actual val") -> anyInt is argument matcher. it doesnot type check. only helpful to avoid casting in code. Part of Matchers.
+
+how to compare values of araylist? Check equality of arraylist 
+--> use assertEquals method. it will use the overriden or default equals method of the class.
+--> convert the list into array and then use assertArrayEquals
+
+Checking Exception scenario
+@Test(expected=ExceptionClassName.class)
+method{
+when(list.get(anyInt())).thenThrow(new Exception("Message"));
+list.get(0)
+}
+
+when(listObj.subList(anyInt(),5)) - not allowed. Matchers cannot be used with hard coded value
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Behaviour Driven Development with Mockito - Given When Then
+
+Given - Setup and Init
+When - actual method call which is mocking any interface/class behaviour
+Then - assertion
+
+given().willReturn() - alternative to when().thenReturn()
+assertThat(actualVal, is(expectedVal)) - alternative to assertEquals(expectedVal, actualVal); - Hamecrest core matchers. check is().
+
+Ex:
+//Given
+List<String> obj = mock(list.class);
+given(obj.get(0)).willReturn("actual val");
+
+//When
+String returnVal = obj.get(0);
+
+//Then
+assertThat(returnVal,is("actual val"));
+
+Verify method get called - comes into use when business impl or service is not returning anything. We can check using verfiy if method is getting called.
+Ex:
+//When
+businessImpl.callMethod("anything")
+//Then
+verify(mockServiceObj).serviceMethod("val")
+verify(mockServiceObj, never()) .serviceMethod("val") - assuring service method will not get called from business methods for the parameters passed
+verify(mockServiceObj, times(2) ).serviceMethod("val") - assuring this will call given time from business method for the parameters passed. Handy for for loops
+verify(mockServiceObj, atLeast(2) ).serviceMethod("val") - name says everything here. There are many more
+
+Alternative for verify
+then(mockServiceObj).should().serviceMethod("val")
+then(mockServiceObj).should( never() ).serviceMethod("val")
+then(mockServiceObj).should( times(2) ).serviceMethod("val")
+
+Refer : https://www.journaldev.com/21855/mockito-verify
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+How to capture arguments passed to mock?
+
+1. Declare argument captor at class level if u want
+ArgumentCaptor<String> argCaptor =  ArgumentCaptor.forClass(String.class);
+
+2. Define argument captor on specific method call of mock obj
+then(mockServiceObj),should().serviceMethod(argCaptor.capture());
+
+3. capture the arg
+assertThat(argCaptor.getValue(), is("val"));
+assertThat(argCaptor.getAllValues(), list of strings) //if service method is getting called multiple times
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Hamcrest Matchers
+
+Lisa<Int> lio;
+assertThat(lio,hasSize(4));
+assertThat(lio, hasItems(99,100));
+assertThat(lio, everyItem(greaterThan(90)));
+assertThat("",isEmptyString());
+assertThat(null,isEmptyOrNullString());
+
+//Arrays
+int marks[]
+assertThat(marks, arrayWithSize(4));
+assertThat(marks, arrayContaining(1,2,3)); //order matters
+assertThat(marks, arrayContainingInAnyOrder(3,2,1)); //no order matters
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Mockito Annotations
+
+@RunWith(MockitoJunitRunner.class) on class --> One class can only have one RunWith annotation
+@Mock on service/DAO
+@InjectMocks on business class in which service dependency defined
+@Captor for argument captor
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@Rules
+
+When you want to have multiple @RunWith in single class u can replace with Rules. Rules have to be public
+
+@RunWith(MockitoJunitRunner.class)
+class{}
+
+replaced by @Rule
+
+class{
+	@Rule
+	MockitoRule mockitoRuleObj = MockitoJunit.Rule();
+	...
+}
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Spy
+
+In Mockito, each method is getting mocked. 
+Spy is like creating a normal obj. On top of that you can mock specific behaviour/method. Other method will still run the actual business logic.
+After defining spy obj, once the method is mocked it will return the stub value.
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+PowerMockito - mock static and private methods
+
+Static Method
+1. 
+@RunWith(PowerMockRunner.class)
+@PrepareForTest(StaticClass.class) --> Pass the class name which containing the static methds
+
+2. 
+PowerMockito.mockStatic(StaticClass.class);
+when(StaticClass.staticMethod()).thenReturn(Object);
+
+To verify static method is getting called:
+
+PowerMockito.verifyStatic(); --put it before actual call
+StaticClass.staticMethod(anyInt())
+
+
+Private Method
+ClassContainingPrivateMethod classObj;
+ReturnType var = Whitebox.invokeMethod(classObj, "PRIVATE_METHIOD_NAME" );
+Whitebox can be used to mock private and inner class methds
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Mocking Constructor
+SUT_Class {
+	methodInitArrayListConstructor (){
+		Arraylist obj = new Arraylist(); --> Mocking Arraylist constructor so it will get defined size not the default val.
+		return obj.getSize();
+	}
+} 
+
+@PrepareForTest(SUT_Class) -> Pass the class name in which constructor is getting called
+class{
+@Mock
+Arraylist listObj;
+
+	junitMethod() {
+		PowerMockito.whenNew(Arraylist.class).withAnyArguements().thenReturn(listObj);
+		ReturnType actualVal = sutClassObj.methodInitArrayListConstructor();
+		assertEquals(expectedVal, actualVal);
+		
+		when(listObj.getSize()).thenReturn(10);
+		ReturnType actualVal = sutClassObj.methodInitArrayListConstructor();
+		assertEquals(10,actualVal);
+	}
+}

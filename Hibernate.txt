@@ -1,0 +1,484 @@
+Hibernate
+
+hibernate-cfg.xml - Default file name for hibernate config
+
+Hibernate API
+Create Session Factory
+Get a session from session-factory
+Use that session to save model object.
+ 
+Mapping model class using XML
+<hibernate-configuration>
+	//Connection Properties
+	<property name="show_sql">true</property>
+
+	<property name="hbm2ddl.auto">create</property> //Create table if not exist
+	<property name="hbm2ddl.auto">update</property> //Create table if not exist. This will not delete old schema on server restart
+
+	<session-factory>
+		<mapping class="ModelClassName" /> // All the class having @Entity must be mention here
+	</session-factory>
+</hibernate-configuration>
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+In DAO method
+SessionFactory sessionFac = new Configuration().configure().buildSessionFactory();
+Session session = sessionFac.openSession();
+session.beginTransaction();
+session.save(ModelClassNameObj);
+session.getTransaction().commit();
+session .close(); // In real scenario we close session in finally block. If exception occurs we rollback the transaction in catch block.
+
+ModelClassNameObj = null;
+
+session = sessionFac.openSession();
+session.beginTransaction();
+ModelClassNameObj = (ModelClassName) session.get(ModelClassName.Class, 1); // second arg we need to mention value of primary key col.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Natural key vs Surrogate key
+If we specify email-id col as primary key it is for business logic reason.
+But if we mark id as primary key. there is no significance of it on the business logic. Hence called surrogate key.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Embedding Objects or Collection/Array of Values
+
+1st Approach
+Treat Child class variables as seperate columns of parent class
+If EmployeeClass contains AddressClass. Properties of AddressClass will be column of EmployeeClass only.
+Entity vs Value Object
+Entity is independent obj. and should be persist in DB. While AddressClass only serve to EmployeeClass
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@Entity (name="DB_TBL_NAME")
+@Table (name="TBL_NAME")
+class ModelClassName{
+	@Id //Primary key
+	@GeneratedValue (strategy=GeneratedType.AUTO) // Autoincrement. Other GeneratedType are SEQUENCE, TABLE, IDENTITY.
+	private int id;
+	
+	@Column (name="COL_NAME")
+	private String name;
+	private String phone;
+	
+	@Embedded //This is not mandatory if we have mark the class as @Embeddable
+	private AddressClass homeAddressObj; // this is value object. This class should contain @Embeddable annotation.
+	
+	@Embedded
+	@AttributeOverrides({  //This is used when Parent class contains multiple objects of Child class. And we want to change behaviour of attribute defined in child class like column name.
+ 		@AttributeOverride(name='"city", column=@Column(name="OFFICE_CITY"))
+ 		@AttributeOverride(name='"state", column=@Column(name="OFFICE_STATE"))
+	}) // if this is not specified this will take default column defined in the child class. In case of multiple object without AttributeOverrides throw Exception.
+	private AddressClass officeCityObj;
+	
+	@Transient //This will tell hibernate not to add this field as col in table. Another way to do it to use transient/static keyword in var. Static var is shared by model obj so cant save it.
+	private String description;
+	
+	@Temporal (TemporalType.DATE) //This only stores date and not time. If temporal annotation not defined it will store entire timestamp.
+	private Date dob;
+	
+	@Lob //This is large object used to say this col contains large text of character or byte stream.
+	private String notes;
+	
+	@Column (name="ANOTHER_COL_NAME")
+	getPhone() {
+		return phone + " This will get added after you are setting value in phone var. If you are setting annotation on gettter method"
+	}
+	
+}
+
+@Embeddable //This says class is value object. Member variables define here will be created as columns of parent class entity.
+class AddressClass {
+
+	@Column(name="CITY")
+	String city;
+	@Column(name="STATE")
+	String state;
+
+	String address;
+}
+
+@Entity
+Class Users {
+
+	@EmbeddedId // Its a combination of @Embedded and @Id. We cant directly use @Embedded with @Id. 
+	LoginClass obj; //This annotation used when child class contains member variables making composite Primary key. We can use AttributeOverrides same like above.
+}
+
+@Embeddable
+LoginClass {
+	private mailId;
+	private password;
+}
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@Entity
+class ParentClass{
+	@Id
+	int id;
+	
+	@ElementCollection
+	@JoinTable(name="JOIN_TABLE", joinColumns=@JoinColumn(name="join_id")) // Used to give custom name to our newly created child table instead of ParentClass_childClassObj.
+	// join_id column will be created instead of ParentClass_id
+	//ParentClass_childClassObj contains col named ParentClass_id which is used to join ParentClass and ChildClass table.
+	Set<ChildClass> childClassObj = HashSet(); //ChildClass must contain @Embeddable annotation. ChildClass data will be stored in new table created called ParentClass_childClassObj.
+
+	@ElementCollection (fetch=FetchType.EAGER) // By default FetchType.LAZY
+	@JoinTable(name="JOIN_TABLE", joinColumns=@JoinColumn(name="join_id")) // Used to give custom name to our newly created child table instead of ParentClass_childClassObj.
+	@GenericGenerator(name="hilo-gen-name-che", strategy="hilo") //Not a JPA Annotation
+	@CollectionId(columns={ 											//Not a JPA Annotation
+		@Column(name="CHILD_PRIMARY_ID")
+	}, generator="hilo-gen-name-che", type=@Type(type="Long"))
+	// As seen above now we can use Collections also instead of Set. Collections support indexing while Set doesnt. Using Collections we can create CHILD_PRIMARY_ID.
+	Collections<ChildClass> childClassObj = ArrayList();
+	
+}
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Proxy Objects and Eager and Lazy Fetch Types
+
+parentClassObj = null;
+...
+parentClassObj = (ParentClass) session.get(ParentClass.class, 1);
+parentClassObj.getListOfChildClass(); // Default is lazy initialization
+
+Hibernate gives you a proxy ParentClass which is a subclass of ParentClass. It contains value of first level.
+While calling GetList method ParentClass will call Proxy ParentClass getList method which will make SQL call.
+
+parentClassObj = null;
+...
+parentClassObj = (ParentClass) session.get(ParentClass.class, 1);
+session.close(); // As session is already closed. proxy object unable to fetch list of child class. If FetchType.EAGER it will get child class list also.
+parentClassObj.getListOfChildClass(); // This will give LazyInitializationException. For FetchType.EAGER it will give proper result.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+One to One Mapping
+
+@Entity
+class Person {
+	@Id
+	int id;
+	String name;
+
+	@OneToOne
+	@JoinColumn(name="vid") // Column with this name created inside person class instead of vehicle_vehicleId
+	Vehicle vehicle;
+}
+
+@Entity
+class Vehicle {
+	@Id @GeneratedValue
+	int vehicleId;
+	String vehicleName;
+}
+
+personObj.setVehicle(vehicleObj);
+session.beginTransaction();
+session.save(personObj);
+session.save(vehicleObj);
+commit transaction
+
+Table created
+It will first create Vehicle table or make entry in it. Then it will put primary id of vehicle class in Person class.
+Person table columns:  id, vehicle_vehicleId, name
+Vehicle table columns: vehicleId, vehicleName
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+One to Many Mapping
+
+@Entity
+class Person {
+	@Id
+	int id;
+	String name;
+
+	@OneToMany
+	@JoinTable(
+		name="personVehicle",
+		joinColumns=@JoinColumn(name="personId"),
+		inverseJoinColumns=@JoinColumns(name="vehicleId")
+	)
+	Collections<Vehicle> vehicle = new ArrayList<>();
+}
+
+@Entity
+class Vehicle {
+	@Id @GeneratedValue
+	int vehicleId;
+	String vehicleName;
+}
+
+set list of vehicle objects in person obj
+session.beginTransaction();
+session.save(personObj);
+session.save( vehicleObj1 );
+session.save( vehicleObj2 );
+commit transaction
+
+Table created
+Vehicle table with columns: vehicleId, vehicleName
+Person table with columns: id, name
+Person_Vehicle table with columns: person_id, vehicle_vehicleId
+
+Using @JoinTable 3rd table created having name PersonVehicle having columns personId and vehicleId.
+This same can be do for the @OneToOne
+
+We can also use @ManyToOne in Vehicle class by creating a Person class obj. We can use @OneToMany and @ManyToOne at same time for Bidirectional relationship.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+mappedBy
+
+While using One to Many Relationship, Hibernate creates third table by default. To avoid creating it we can use mappedBy attribute.
+One Person can have multiple Vehicles so cant create seperate columns inside Person table but Vehicle contains unique Person so we can create seperate col there
+
+Person {	
+	@OneToMany(mappedBy="personVarDefinedInVehicle")
+	Collections<Vehicle> vehicle;
+}
+Vehicle {
+	@ManyToOne
+	@JoinColumn(name="personId")
+	Person personVarDefinedInVehicle; //This variable named used in mappedBy attribute.
+}
+
+Tables created
+Person columns: id, name
+Vehicle columns: vehicleId, personId, vehicleName
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Many to Many Mapping
+
+class Person {
+	@ManyToMany
+	@JoinTable(...) // As mappedBy mention in Vehicle class u can only use this annotation here.
+	Collection<Vehicle> vehicleList;
+}
+class Vehicle {
+	@ManyToMany(mappedBy="vehicleList") // mention mappedBy to avoid creating the fourth table. alternative u can mention this in  Person class
+	Collection<Person> personList;
+}
+
+Tables created:
+Person
+Vehicle
+3rd table Person_Vehicle columns: person_id, vehicleList_vehicleId
+4th table Vehicle_Person columns: vehicle_vehicleId, personList_persionId
+
+As we are mentioning mappedBy in Vehicle class, its responsibility of Person class to create mapped table. In this case you can only mention @JoinTable in person class and not in Vehicle class.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+@NotFound
+
+Person {	
+	@OneToMany
+	Collections<Vehicle> vehicle;
+}
+Vehicle {
+	@ManyToOne
+	@NotFound(action=NotFoundAction.IGNORE)
+	Person personVarDefinedInVehicle; //This variable named used in mappedBy attribute.
+}
+
+If vehicle is not rented by anyone and for vehicle entries there is not relative entry in the db for Person table.
+While executing vehicleObj.getPerson() it will throw exception. Using @NotFound exception can be taken care.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CascadeType
+
+If ParentClass and ChildClass both are seperate Entity we need to save the relevant Objects using session. In case of value object only parent class need to be save by session.
+
+Person class contains List of Vehicles. In this case code snippet:
+personObj.getVehicleList().add(vehicleobj1);
+personObj.getVehicleList().add(vehicleobj2);
+session.save(personObj);
+session.save(vehicleObj1);
+session.save(vehicleObj2);
+Here we are saving vehicleObj explicitly. To avoid this use CascadeType
+
+Person {
+	@OneToMany(cascade=CascadeType.PERSIST) // to use all cascade related features use CascadeType.ALL
+	Collection<Vehicle> vehicleList;
+}
+
+Now no need to save vehicleObj using session explicitly. But instead of save method we will call persist method.
+session.persist(personObj);
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Implementing Inheritance - Single Table Strategy By Default
+
+All are Entity Class
+
+@DiscriminatorColumn(
+	name="VEHICLE_TYPE",	//changing name of columm from "dtype" which is default to "VEHICLE_TYPE"
+	discriminatorType= DiscriminatorType.STRING
+)
+class Vehicle {
+	int id;
+	String name;
+}
+@DiscriminatorValue("TwoWheelChe")			//This value will be passed in dtype column named VEHICLE_TYPE. If not mentioned it will pass name of class.
+class TwoWheel extends Vehicle {
+	String steeringHandle;
+}
+@DiscriminatorValue("FourWheelChe")
+class FourWheel extends Vehicle {
+	String steeringWheel;
+}
+
+Tables created
+Vehicle columns: dtype, id, name, steeringHandle, steeringWheel
+dtype is name of the Class.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Implementing Inheritance - Table per Class Strategy
+
+@Inheritance(strategy=InheritanceType.TABLE_PER_CLASS)
+class Vehicle {
+	id,name;
+}
+
+class TwoWheel extends Vehicle {
+	steeringHandle;
+}
+
+class FourWheel extends Vehicle {
+	steeringWheel;
+}
+
+Vehicle vo = new Vehicle();
+vo set id and name
+
+TwoWheel two = new TwoWheel();
+set id and name override by parent class and steeringHandle 
+
+FourWheel fwo = new FourWheel();
+set id, name and steeringWheel
+
+session.save(vo);
+session.save(two);
+session.save(fwo);
+
+Tables created:
+Vehicle columns: id, name
+TwoWheel columns: id, name, steeringHandle
+FourWheel columns: id, name, steeringWheel
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Implementing Inheritance - Joined Strategy
+
+@Inheritance(strategy=InheritanceType.JOINED)
+class Vehicle {
+	id,name;
+}
+
+Tables created
+Vehicle columns: id, name
+TwoWheel columns: steeringHandle, id(primary key of parent table)
+FourWheel columms: steeringWheel, id(primary key of parent table)
+Here member variables of parent table will be created as columns of vehicle table only. Join is created by having primary key column in child tables.
+What if we create two different obj of Child class setting same name of parent class ?
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Transient, Persistent and Detached Object
+
+User userObj = ... // This is a Entity object but outside transaction so it is called Transient object.
+Begin Hibernate transaction and open session
+session.save(userObj); // As hibernate pases userObj to session. Now it is called Persistent object
+
+1st way
+userObj.setName("1"); // This will make update query as session is not closed and we are changing in persistent object.
+Transaction commit
+
+2nd way
+userObj.setName("2"); // This will not make update query
+userObj.setName("3"); // Hibernate identifies smartly which is the last time persistent obj got updated and based on that make update query.
+
+session.close();
+userObj.setName(".."); // This will not get update in DB as it is now detached obj. Session is already closed.
+
+session.get(...) gives us persistent object
+session.delete(...) makes the object transient.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Persisting Detached Object
+
+@Entity(SelectBeforeUpdate=true) //Hibernate annotation. If you are calling sesion.update() on detached object. Hibernate will first call select for that primary key. If there is any change then only it will call update. Without SelectBeforeUpdate attr. hibernate will call update query everytime no matter obj state changed or not.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+HQL and Query Object
+
+Begin transaction
+Query query = session.createQuery("from Person where id > 5 and name = ? and cell = :cell"); //Here we need to pass Class name and their member variable not the table and column name
+query.setString(0,"Hi");
+query.setInteger("cell", 1234);
+
+//For Pagination
+query.setFirstResult(5); //Skip first 5 result
+query.setMaxResults(5); //Showing next 5 results
+
+List<Person> personList = (List<Person>) query.list();
+Transaction commit
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Named Queries and Named Native Queries
+
+@Entity
+@NamedQuery(name="PersonClass.byPersonId",query="from PersonClass where personId = ?")
+@NamedNativeQuery(name="Person.byId",query="select * from Person where id=?",resultClass=PersonClass.class)
+@Table(name="Person")
+class PersonClass{
+	@Id @Column(name="id")
+	int id; String name;
+} 
+
+In DAO
+Begin Transaction
+session.getNamedQuery("PersonClass.byPersonId"); // Same for Named Native Query.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Criteria API, Projections, Query by Example
+
+Criteria criteria = session.createCriteria(Person.class);
+criteria.add(Restrictions.eq("name","Harsh"));
+List<Person> personList = (List<Person>) criteria.list();
+
+Criteria criteria = session.createCriteria(Person.class)
+									.setProjection(Projections.Property("id"))
+									.setProjection(Projections.max("id"))
+									.setProjection(Projections.count("id"))
+									.addOrder(Order.desc("id"));
+
+Person person = new Person();
+person.setId("12");
+person.setName("Hi");
+Example example = Example.create(person); //Hibernate Example class
+Criteria criteria = session.createCriteria(Person.class).add(example);
+
+// If you want to exclude any property for search filter
+Example example = Example.create(person).excludeProperty("age");
+
+Example ignore value set for primary key. For search purpose value must be set for any of the other member var.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Hibernate Cache
+
+First level cache - Session
+
+Begin Transaction
+Person po = session.get(...); // select query
+po.setName(".."); // update query
+Person po1 = session.get(); // return value from cache without executing select query
+Session close - Clearing cache
+
+New Session
+Person po = session.get(...); // select query
+
+By default hibernate disable second level cache using xml
+<property name="cache_provider_class">org.hibernate.cache.NoCacheProvider</property>
+change it to EhCacheProvider or OsCacheProvider
+
+Add this extra property to enablle second level cache
+<property name="cache_use_second_level_cache">true</property>
+<property name="cache_use_query_cache">true</property> --> When you are using Named Query or HQL Query.
+
+Provide Cache annotation on Entity class
+
+@Entity
+@Cacheable
+@Cache(usage=CacheConcurrencyStrategy.READ_ONLY) // tell u are only reading data from db and not writing it.
+class Person { ... }
+
+In DAO, if you call session.get() in the new created session it will still get data from second level cache and not execute select query. All session shares same second level cache.
+
+For making HQL query cacheble we cant use @Cacheable. We can use setCacheable method
+
+Session session1 = ...;
+Query query1 = ...;
+query1.setCacheable(true);
+query1.list();
+
+Session session1 = ...;
+Query query2 = ...;
+query2.setCacheable(true); // need to mention this in all the session
+query2.list(); // This will fetch data from second level cache.
+
+

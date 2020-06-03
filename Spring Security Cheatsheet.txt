@@ -1,0 +1,6 @@
+Spring Security Cheatsheet
+
+Provides authentication and authorization for web app and web services
+
+Extra
+Learn SSO, CAS, Active Directory, OAuth
